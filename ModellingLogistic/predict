@@ -1,0 +1,46 @@
+#!/usr/bin/env Rscript
+
+library(rjson)
+library(data.table)
+library(tidyr)
+library(lightgbm)
+
+fname_test <- dir(path = "./../ml_vol/inputs/data/testing/binaryClassificationBaseMainInput/", pattern = "\\_test.csv$")
+fname_testschema <- dir(path = "./../ml_vol/inputs/data_config/", pattern = "\\_schema.json$")
+testdata <- fread(paste0("./../ml_vol/inputs/data/testing/binaryClassificationBaseMainInput/",fname_test))
+
+tdataschema <- fromJSON(file = paste0("./../ml_vol/inputs/data_config/",fname_testschema))
+
+# select the ID column into a variable and drop it from the test data. 
+# the variable created will be bound to the predicted probabilities 
+
+idfieldname <- tdataschema$inputDatasets$binaryClassificationBaseMainInput$idField
+
+
+source("preprocessor.R")
+
+#output_vector <- preprocessing(fname_train=fname_test,fname_schema=fname_schema,genericdata=testdata,dataschema=tdataschema)[[2]]
+resvar <- preprocessing(fname_train=fname_test,fname_schema=fname_schema,genericdata=testdata,dataschema=tdataschema)[[3]]
+testdata_matrix <- preprocessing(fname_train=fname_test,fname_schema=fname_schema,genericdata=testdata,dataschema=tdataschema)[[5]]
+test_data <- preprocessing(fname_train=fname_test,fname_schema=fname_schema,genericdata=testdata,dataschema=tdataschema)[[4]]
+
+# load the trained model
+lgbm_model <- readRDS.lgb.Booster(file="./../ml_vol/model/artifacts/lgbm_model.rds")
+
+testing <- function()
+{
+  df <- testdata_matrix
+  predictions <- predict(lgbm_model,testdata_matrix)
+  # label encode the response variable
+  thepredictions <- cbind(test_data, predictions)
+  testdata_preds <- thepredictions[,c(eval(idfieldname),eval(resvar),"predictions")]
+
+  testpredictions <- tidyr::pivot_wider(testdata_preds,names_from=eval(resvar),values_from="predictions")
+
+  testpredictions_n <- setDT(testpredictions)[is.na(`1`),`1` := 1-`0`][is.na(`0`),`0` := 1-`1`]
+
+  write.csv(testpredictions_n,"./../ml_vol/outputs/testing_outputs/testpredictions.csv")
+
+}
+
+testing()

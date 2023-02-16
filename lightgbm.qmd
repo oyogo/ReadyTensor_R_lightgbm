@@ -1,0 +1,56 @@
+---
+title: "lightgbm"
+format: html
+editor: visual
+---
+
+
+```{r}
+library(lightgbm)
+library(data.table)
+```
+
+
+```{r}
+telco_lgbm <- fread("ml_vol/inputs/data/training/binaryClassificationBaseMainInput/telco_churn_train.csv")
+telco_lgbm <- subset(telco_lgbm, select = -c(customerID))
+```
+
+
+```{r}
+# Numeric response and feature matrix
+y <- as.numeric(telco_lgbm$Churn == "Yes")
+X <- data.matrix(subset(telco_lgbm, select = -c(Churn)))
+
+# Train
+fit <- lightgbm(
+  data = X
+  , label = y
+  , params = list(
+    num_leaves = 4L
+    , learning_rate = 1.0
+    , objective = "binary"
+  )
+  , nrounds = 10L
+  , verbose = -1L
+)
+
+
+```
+
+
+```{r}
+telco_test <- fread("ml_vol/inputs/data/testing/binaryClassificationBaseMainInput/telco_churn_test.csv")
+telco_test <- subset(telco_test, select =-c(customerID))
+
+x_test <- data.matrix(subset(telco_test, select = -c(Churn)))
+```
+
+
+```{r}
+# Result
+y_pred <- predict(fit, x_test)
+#>    Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#> 0.01192 0.07370 0.09871 0.11593 0.14135 0.65796
+```
+
